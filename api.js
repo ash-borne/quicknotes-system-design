@@ -19,11 +19,14 @@ function showStatus(message, type) {
   statusEl.className = type;
 }
 
-// Disable the buttons while a request is running
+// Disable every button while a request is running
 function setBusy(isBusy) {
   busy = isBusy;
   loadBtn.disabled = isBusy;
   submitBtn.disabled = isBusy;
+  for (const btn of notesList.querySelectorAll(".delete-btn")) {
+    btn.disabled = isBusy;
+  }
 }
 
 // Reusable request: calls fetch, checks response.ok and throws on errors
@@ -82,6 +85,36 @@ async function createNote(title, body) {
   }
 }
 
+// DELETE: remove a note
+// JSONPlaceholder does not really store notes we create, so the server has
+// no record of them and may answer 404 when we delete one. For a note created
+// on this page, a 404 therefore still means "gone", so we remove it anyway.
+async function deleteNote(note) {
+  setBusy(true);
+  showStatus("Deleting note...", "loading");
+  try {
+    let message;
+    try {
+      const result = await request(`${API_URL}/${note.id}`, { method: "DELETE" });
+      message = `Note deleted (status ${result.status}).`;
+    } catch (error) {
+      if (!(note.local && error.status === 404)) {
+        throw error;
+      }
+      message = "Note removed (the practice API never saved it, status 404).";
+    }
+    notes = notes.filter(function (item) {
+      return item.key !== note.key;
+    });
+    renderNotes();
+    showStatus(message, "success");
+  } catch (error) {
+    showStatus("Sorry, we could not delete that note. Please try again.", "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
 // Build one note card (textContent only, never innerHTML for user text)
 function createNoteItem(note) {
   const item = document.createElement("li");
@@ -93,7 +126,16 @@ function createNoteItem(note) {
   const body = document.createElement("p");
   body.textContent = note.body || "(no body)";
 
-  item.append(title, body);
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "delete-btn";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.disabled = busy;
+  deleteBtn.addEventListener("click", function () {
+    deleteNote(note);
+  });
+
+  item.append(title, body, deleteBtn);
   return item;
 }
 
