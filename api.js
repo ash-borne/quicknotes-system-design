@@ -1,11 +1,17 @@
 const API_URL = "https://jsonplaceholder.typicode.com/posts";
+const MAX_TITLE = 100;
 
 const loadBtn = document.querySelector("#load-btn");
 const statusEl = document.querySelector("#status");
+const form = document.querySelector("#note-form");
+const titleInput = document.querySelector("#title-input");
+const bodyInput = document.querySelector("#body-input");
+const submitBtn = document.querySelector("#submit-btn");
 const notesList = document.querySelector("#notes-list");
 
 let notes = [];
 let busy = false;
+let localCount = 0;
 
 // Show a message in the status area; type is "loading", "success" or "error"
 function showStatus(message, type) {
@@ -17,6 +23,7 @@ function showStatus(message, type) {
 function setBusy(isBusy) {
   busy = isBusy;
   loadBtn.disabled = isBusy;
+  submitBtn.disabled = isBusy;
 }
 
 // Reusable request: calls fetch, checks response.ok and throws on errors
@@ -46,6 +53,30 @@ async function loadNotes() {
     showStatus(`Loaded ${notes.length} notes from the server.`, "success");
   } catch (error) {
     showStatus("Sorry, we could not load your notes. Please try again.", "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+// POST: create a note
+async function createNote(title, body) {
+  setBusy(true);
+  showStatus("Saving note...", "loading");
+  try {
+    const result = await request(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title, body: body, userId: 1 }),
+    });
+    // JSONPlaceholder gives every new note the same id (101), so each note
+    // created on this page also gets its own unique "key" for the list.
+    localCount++;
+    notes.unshift({ ...result.data, key: `local-${localCount}`, local: true });
+    renderNotes();
+    form.reset();
+    showStatus(`Note created (status ${result.status}, id ${result.data.id}).`, "success");
+  } catch (error) {
+    showStatus("Sorry, we could not save your note. Please try again.", "error");
   } finally {
     setBusy(false);
   }
@@ -82,5 +113,21 @@ function renderNotes() {
 }
 
 loadBtn.addEventListener("click", loadNotes);
+
+form.addEventListener("submit", function (event) {
+  event.preventDefault();
+  const title = titleInput.value.trim();
+
+  if (title === "") {
+    showStatus("Please enter a title.", "error");
+    return;
+  }
+  if (title.length > MAX_TITLE) {
+    showStatus("The title must be 100 characters or fewer.", "error");
+    return;
+  }
+
+  createNote(title, bodyInput.value.trim());
+});
 
 renderNotes();
